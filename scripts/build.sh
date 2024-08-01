@@ -34,20 +34,34 @@ create_image() {
     mkfs.fat -F32 -n "UEFI" "${image}"
 }
 
+sync_image() {
+    local image="$1" manifest="$2" mnt
+
+    mnt="$(mktemp -d)"
+    defer "rm -rf $mnt"
+
+    sudo mount "$image" "$mnt"
+    defer "sudo umount $mnt"
+
+    local from to
+    while read -r from to; do
+        if [ -z "$from" ] || [ "${from:0:1}" == "#" ]; then
+            continue
+        fi
+
+        [ -z "$to" ] && to="$from"
+        sudo mkdir -p "$mnt/$(dirname "$to")"
+        sudo cp -vf "$from" "$mnt/$to"
+    done < "$manifest"
+}
+
 if [ $# -lt 2 ]; then
-    error "Please specify the image file and UEFI application."
+    error "Please specify the image and manifest file."
     exit 1
 fi
 
 IMAGE="$1"
-UEFI="$2"
+MANIFEST="$2"
 
-create_image "$IMAGE"
-LOOP_DEV="$(sudo losetup --show -fP "$IMAGE")"
-MOUNT_DIR="$(mktemp -d)"
-
-sudo mount "${LOOP_DEV}" "$MOUNT_DIR"
-if [ -n "$3" ]; then
-    sudo mkdir -p "$MOUNT_DIR$(dirname "$3")"
-fi
-sudo cp "$UEFI" "$MOUNT_DIR$3"
+create_image "$IMAGE" || exit 1
+sync_image "$IMAGE" "$MANIFEST"

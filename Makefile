@@ -17,11 +17,8 @@ CFLAGS = -pedantic -Wall -Wextra -Werror --ansi -O2
 #USE_GCC = 1
 include uefi/Makefile
 
-uefi.img: all
-	scripts/build.sh $@ $(TARGET)
-
-boot.img: all
-	scripts/build.sh $@ $(TARGET) /EFI/BOOT/BOOTX64.EFI
+uefi.img: uefi.manifest all
+	scripts/build.sh $@ $^
 
 run: uefi.img
 	scripts/run.sh $<
