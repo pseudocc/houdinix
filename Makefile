@@ -2,7 +2,7 @@
 ARCH = x86_64
 # define your target file here
 TARGET = helloworld.efi
-#define your sources here
+# define your sources here
 SRCS = $(wildcard *.c)
 # define your default compiler flags
 CFLAGS = -pedantic -Wall -Wextra -Werror --ansi -O2
@@ -16,3 +16,12 @@ CFLAGS = -pedantic -Wall -Wextra -Werror --ansi -O2
 # set this if you want GNU gcc + ld + objcopy instead of LLVM Clang + Lld
 #USE_GCC = 1
 include uefi/Makefile
+
+uefi.img: $(TARGET)
+	scripts/build.sh $@ $<
+
+boot.img: $(TARGET)
+	scripts/build.sh $@ $< /EFI/BOOT/BOOTX64.EFI
+
+run: uefi.img
+	scripts/run.sh $<
