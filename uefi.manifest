@@ -1,2 +1,3 @@
-helloworld.efi
-helloworld.efi EFI/BOOT/BOOTX64.efi
+exit_bs.efi
+# exit_bs.efi EFI/BOOT/BOOTX64.efi
+kernel.elf boot/kernel.elf

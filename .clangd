@@ -1,2 +1,4 @@
 CompileFlags:
-  Add: -I./uefi
+  Add:
+    - -I.
+    - -I./uefi

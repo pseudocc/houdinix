@@ -1,7 +1,7 @@
 # define which architecture you're targeting
 ARCH = x86_64
 # define your target file here
-TARGET = helloworld.efi
+TARGET = exit_bs.efi
 # define your sources here
 SRCS = $(wildcard *.c)
 # define your default compiler flags
@@ -17,15 +17,20 @@ CFLAGS = -pedantic -Wall -Wextra -Werror --ansi -O2
 #USE_GCC = 1
 include uefi/Makefile
 
+all: kernel.elf
+	$(MAKE) -C uefi
+
+kernel.elf:
+	$(MAKE) -C kernel
+
 uefi.img: uefi.manifest all
 	scripts/build.sh $@ $^
 
-run: uefi.img
-	scripts/run.sh $<
+QEMU_TARGETS = run-shell run-boot
+$(QEMU_TARGETS): run-%: uefi.img
+	scripts/run.sh $* $<
 
-ADDITIONAL_CLEAN = clean distclean
-$(ADDITIONAL_CLEAN):
+clean:
 	$(MAKE) -C uefi $@
+	$(MAKE) -C kernel $@
 	rm -f uefi.img boot.img
-
-.PHONY: run all $(ADDITIONAL_CLEAN)
