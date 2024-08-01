@@ -1,0 +1,6 @@
+[submodule "posix-uefi"]
+	path = posix-uefi
+	url = git@github.com:pseudocc/posix-uefi.git
+[submodule "pseudosh"]
+	path = pseudosh
+	url = git@github.com:pseudocc/pseudosh.git
