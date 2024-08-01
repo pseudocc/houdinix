@@ -4,3 +4,6 @@
 [submodule "pseudosh"]
 	path = deps/pseudosh
 	url = git@github.com:pseudocc/pseudosh.git
+[submodule "deps/ssfn2"]
+	path = deps/ssfn2
+	url = https://gitlab.com/bztsrc/scalable-font2.git
