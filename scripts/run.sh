@@ -58,14 +58,14 @@ uefi_shell() {
         -drive if=pflash,format=raw,unit=0,file="$code_fd",readonly=on \
         -drive if=pflash,format=raw,unit=1,file="$tmp_vars_fd" \
         -drive file="$1",format=raw \
-        -net none -nographic -m 600M
+        -net none -nographic
 }
 
 boot_image() {
     qemu-system-x86_64 -cpu qemu64 \
         -bios "$(ovmf_fd)" \
         -drive file="$1",format=raw \
-        -net none -m 600M
+        -net none -m 128M
 }
 
 case "$1" in
