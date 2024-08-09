@@ -4,3 +4,5 @@
 *.so
 *.img
 *.elf
+.zig-cache
+zig-out
