@@ -1,5 +1,5 @@
 exit_bs.efi
-# exit_bs.efi EFI/BOOT/BOOTX64.efi
-kernel.elf boot/kernel.elf
+# zig-out/bin/houdinix.efi EFI/BOOT/BOOTX64.efi
+kernel/zig-out/bin/houdinix boot/kernel.elf
 zig-out/bin/houdinix.efi houdinix.efi
 hello.txt

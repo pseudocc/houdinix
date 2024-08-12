@@ -5,7 +5,6 @@ pub fn build(b: *std.Build) void {
         .default_target = .{
             .cpu_arch = .x86_64,
             .os_tag = .uefi,
-            .abi = .msvc,
         },
     });
 
@@ -13,12 +12,12 @@ pub fn build(b: *std.Build) void {
         .preferred_optimize_mode = .ReleaseFast,
     });
 
-    const exe = b.addExecutable(.{
+    const boot_efi = b.addExecutable(.{
         .name = "houdinix",
         .root_source_file = b.path("boot.zig"),
         .target = efi_target,
         .optimize = optimize,
     });
 
-    b.installArtifact(exe);
+    b.installArtifact(boot_efi);
 }

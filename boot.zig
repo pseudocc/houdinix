@@ -1,4 +1,5 @@
 const std = @import("std");
+const kernel = @import("kernel/houdinix.zig");
 
 const uefi = std.os.uefi;
 const fmt = std.fmt;
@@ -115,7 +116,7 @@ fn memmap() Error!MemoryMap {
     };
 }
 
-fn cat(root: *const File, path: []const u8) Error!void {
+fn kernel_entry(comptime T: type, root: *const File, path: []const u8) Error!T {
     const u16path = std.unicode.utf8ToUtf16LeAllocZ(allocator, path) catch return Error.OutOfResources;
     defer allocator.free(u16path);
 
@@ -123,15 +124,32 @@ fn cat(root: *const File, path: []const u8) Error!void {
     try root.open(&file, u16path, File.efi_file_mode_read, File.efi_file_read_only).err();
     defer _ = file.close();
 
-    var buf: [page_size]u8 = undefined;
+    var size: usize = 0;
+    try file.setPosition(File.efi_file_position_end_of_file).err();
+    try file.getPosition(&size).err();
+    try file.setPosition(0).err();
+
+    const buffer = allocator.alloc(u8, size) catch return Error.OutOfResources;
+
     var reader = file.reader();
-    var bytes_read: usize = 0;
-    while (true) {
-        bytes_read = reader.read(&buf) catch return Error.OutOfResources;
-        if (bytes_read == 0)
-            break;
-        try efiwrite(buf[0..bytes_read]);
+    _ = reader.readAll(buffer) catch unreachable;
+
+    var source = std.io.fixedBufferStream(buffer);
+    const header = std.elf.Header.read(&source) catch {
+        try efiwrite("Failed to read ELF header\r\n");
+        return Error.LoadError;
+    };
+
+    var phit = header.program_header_iterator(&source);
+    while (phit.next() catch return Error.EndOfFile) |ph| {
+        if (ph.p_type == std.elf.PT_LOAD) {
+            const dest: []u8 = @as([*]u8, @ptrFromInt(ph.p_vaddr))[0..ph.p_memsz];
+            @memcpy(dest, buffer[ph.p_offset .. ph.p_offset + ph.p_filesz]);
+            @memset(dest[ph.p_filesz..], 0);
+        }
     }
+
+    return @ptrFromInt(header.entry);
 }
 
 fn efimain() Error!void {
@@ -142,43 +160,53 @@ fn efimain() Error!void {
     const lip = try boot_services.openProtocolSt(uefi.protocol.LoadedImage, uefi.handle);
     const fs = try boot_services.openProtocolSt(FileSystem, lip.device_handle.?);
     try fs.openVolume(&root_dir).err();
-    defer _ = root_dir.close();
+    errdefer _ = root_dir.close();
 
-    const mmap = try memmap();
-    var ram_sz: usize = 0;
-    var it = mmap.iterator();
-    while (it.next()) |desc| {
-        if (desc.type == .ConventionalMemory)
-            ram_sz += desc.number_of_pages * page_size;
+    const GraphicsOutput = uefi.protocol.GraphicsOutput;
+    var maybe_gop: ?*GraphicsOutput = null;
+    try boot_services.locateProtocol(&GraphicsOutput.guid, null, @ptrCast(&maybe_gop)).err();
+    const gop = maybe_gop orelse return Error.NotFound;
+
+    gop.setMode(0).err() catch |err| {
+        try efiprint("Failed to set graphics mode: {}\r\n", .{err});
+        return err;
+    };
+    inline for (.{ stdout, stderr }) |to|
+        _ = to.reset(false);
+    const gm = gop.mode;
+    var bp: kernel.BootParam = .{
+        .framebuffer = @ptrFromInt(gm.frame_buffer_base),
+        .width = gm.info.horizontal_resolution,
+        .height = gm.info.vertical_resolution,
+        .pitch = gm.info.pixels_per_scan_line * @sizeOf(u32),
+        .argc = 0,
+        .argv = null,
+    };
+
+    const args = std.os.argv;
+    if (args.len > 1) {
+        bp.argc = @intCast(args.len - 1);
+        var argv = allocator.alloc([*c]u8, args.len) catch return Error.OutOfResources;
+        for (0..args.len - 2) |i| {
+            argv[i] = allocator.dupeZ(u8, std.mem.sliceTo(args[i + 1], 0)) catch return Error.OutOfResources;
+        }
+        argv[args.len - 1] = null;
+        bp.argv = @ptrCast(argv);
     }
 
-    const KB = 1 << 10;
-    const MB = 1 << 20;
-    const GB = 1 << 30;
-
-    const unit: u8 = value: {
-        if (ram_sz < KB) break :value 0;
-        if (ram_sz < MB) break :value 'K';
-        if (ram_sz < GB) break :value 'M';
-        break :value 'G';
+    const KernelEntry = *fn (bp: *kernel.BootParam) callconv(.SysV) noreturn;
+    const entry = kernel_entry(KernelEntry, root_dir, "boot\\kernel.elf") catch |err| {
+        try efiprint("Failed to read ELF file: {}\r\n", .{err});
+        return;
     };
 
-    const amount = switch (unit) {
-        'K' => @as(f64, @floatFromInt(ram_sz)) / KB,
-        'M' => @as(f64, @floatFromInt(ram_sz)) / MB,
-        'G' => @as(f64, @floatFromInt(ram_sz)) / GB,
-        else => {
-            try efiprint("RAM size: {} B\r\n", .{ram_sz});
-            return;
-        },
+    const mmap = try memmap();
+    boot_services.exitBootServices(uefi.handle, mmap.key).err() catch |err| {
+        try efiprint("Failed to exit the UEFI boot services: {}\r\n", .{err});
+        return;
     };
 
-    try efiprint("RAM size: {d:.1} {c}B\r\n", .{ amount, unit });
-
-    try efifwrite(stdout, "Reading file hello.txt:\r\n");
-    cat(root_dir, "hello.txt") catch |err| {
-        try efiprint("Failed to read file: {}\r\n", .{err});
-    };
+    @call(.never_inline, entry, .{&bp});
 }
 
 pub fn main() uefi.Status {
