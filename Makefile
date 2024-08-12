@@ -1,36 +1,25 @@
-# define which architecture you're targeting
-ARCH = x86_64
-# define your target file here
-TARGET = exit_bs.efi
-# define your sources here
-SRCS = $(wildcard *.c)
-# define your default compiler flags
-CFLAGS = -pedantic -Wall -Wextra -Werror --ansi -O2
-# define your default linker flags
-#LDFLAGS =
-# define your additional libraries here
-#LIBS = -lm
+BOOT_SRCS = $(wildcard *.zig)
+KERNEL_SRCS = $(wildcard kernel/*.zig)
 
-# leave the hard work and all the rest to posix-uefi
+KERNEL_ELF = kernel/zig-out/bin/houdinix
+BOOT_EFI = zig-out/bin/houdinix.efi
 
-# set this if you want GNU gcc + ld + objcopy instead of LLVM Clang + Lld
-#USE_GCC = 1
-include uefi/Makefile
+TARGETS = $(KERNEL_ELF) $(BOOT_EFI)
 
-all: kernel.elf
-	$(MAKE) -C uefi
+$(KERNEL_ELF): $(KERNEL_SRCS)
+	cd kernel && zig build --release
 
-kernel.elf:
-	$(MAKE) -C kernel
+$(BOOT_EFI): $(BOOT_SRCS)
+	zig build --release
 
-uefi.img: uefi.manifest all
-	scripts/build.sh $@ $^
+uefi.img: uefi.manifest $(TARGETS)
+	scripts/build.sh $@ $<
 
 QEMU_TARGETS = run-shell run-boot
 $(QEMU_TARGETS): run-%: uefi.img
 	scripts/run.sh $* $<
 
 clean:
-	$(MAKE) -C uefi $@
-	$(MAKE) -C kernel $@
-	rm -f uefi.img boot.img
+	rm -rf .zig-cache kernel/.zig-cache
+	rm -rf zig-out kernel/zig-out
+	rm -f uefi.img

@@ -1,8 +1,4 @@
-*.o
 *.efi
-*.a
-*.so
 *.img
-*.elf
 .zig-cache
 zig-out

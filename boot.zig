@@ -195,7 +195,7 @@ fn efimain() Error!void {
     }
 
     const KernelEntry = *fn (bp: *kernel.BootParam) callconv(.SysV) noreturn;
-    const entry = kernel_entry(KernelEntry, root_dir, "boot\\kernel.elf") catch |err| {
+    const entry = kernel_entry(KernelEntry, root_dir, "boot\\houdinix") catch |err| {
         try efiprint("Failed to read ELF file: {}\r\n", .{err});
         return;
     };
